@@ -1,0 +1,111 @@
+package com.example.E_comerse.controller;
+
+import com.example.E_comerse.dto.request.LoginRequest;
+import com.example.E_comerse.dto.request.UserRequest;
+import com.example.E_comerse.dto.response.ApiResponse;
+import com.example.E_comerse.dto.response.UserResponse;
+import com.example.E_comerse.exception.DuplicateDataException;
+import com.example.E_comerse.service.UserService;
+import com.example.E_comerse.util.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/user")
+public class UserController {
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> registerUser(@RequestBody UserRequest userRequest){
+        try {
+            UserResponse UserResponse = userService.registerUser(userRequest);
+            return  ResponseEntity.ok(new ApiResponse<>(200, UserResponse));
+        }catch (DuplicateDataException e) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT.value())
+                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .body(new ApiResponse<>(HttpStatus.INTERNAL_SERVER_ERROR.value(), e.getMessage()));
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> loginUser(@RequestBody LoginRequest loginRequest) {
+        try {
+            UserResponse userResponse = userService.loginUser(loginRequest);
+            String token = jwtUtil.generateToken(userResponse.getUsername());
+            return ResponseEntity.ok(new ApiResponse<>(200, token));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity
+                    .status(e.getStatusCode())
+                    .body(new ApiResponse<>(e.getStatusCode().value(), e.getReason()));
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(500, "Terjadi kesalahan pada server: " + e.getMessage())); // ✅ Tampilkan error detail
+        }
+    }
+
+    @GetMapping("/username/{username}")
+    public ResponseEntity<?> getIdByUsername(@PathVariable String username) {
+        try {
+            UserResponse userResponse = userService.getIdbyUsername(username);
+            if (userResponse == null) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User tidak ditemukan");
+            }
+            return ResponseEntity.ok(userResponse);
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(new ApiResponse<>(e.getStatusCode().value(), e.getReason()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(500, "Terjadi kesalahan pada server: " + e.getMessage()));
+        }
+    }
+
+
+    /** ✅ Get All Users */
+    @GetMapping
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        List<UserResponse> users = userService.getAllUsers();
+        return ResponseEntity.ok(users);
+    }
+
+    @PutMapping("/{userId}/update-username")
+    public ResponseEntity<?> updateUsername(@PathVariable Long userId, @RequestBody UserRequest request) {
+        System.out.println("Request masuk: " + request); // Debugging
+
+        try {
+            UserResponse updatedUser = userService.updateUsername(userId, request);
+            return ResponseEntity.ok(new ApiResponse<>(200, updatedUser));
+        } catch (DuplicateDataException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(new ApiResponse<>(HttpStatus.CONFLICT.value(), e.getMessage()));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(new ApiResponse<>(e.getStatusCode().value(), e.getReason()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(500, "Terjadi kesalahan pada server"));
+        }
+    }
+
+
+
+
+
+
+
+}
